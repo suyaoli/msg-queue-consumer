@@ -1,0 +1,22 @@
+{
+  "name": "msg-queue-consumer",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/suyaoli/msg-queue-consumer.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/suyaoli/msg-queue-consumer/issues"
+  },
+  "homepage": "https://github.com/suyaoli/msg-queue-consumer#readme",
+  "dependencies": {
+    "amqplib": "^0.5.3"
+  }
+}
