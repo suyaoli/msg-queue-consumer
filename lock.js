@@ -8,18 +8,16 @@ var fs = require('fs');
 var ini = require('ini');
 var Info = ini.parse(fs.readFileSync("config.ini", "UTF-8"));
 
-console.log(Info);
 
 log4js.configure({
   appenders: {
     out: { type: 'stdout' },
-    app: { type: 'file', filename: './logs/application.log' },
     day: {
       type: 'dateFile', filename: "./logs/date", alwaysIncludePattern: true, pattern: "-yyyy-MM-dd.log"
     }
   },
   categories: {
-    default: { appenders: ['out', 'app', 'day'], level: 'info' }
+    default: { appenders: ['out','day'], level: Info.log},
   }
 });
 
@@ -73,11 +71,11 @@ open.then(function (conn) {
 
         };
 
-        log.info("post options:\n", options);
+        log.debug("post options:\n", options);
 
-        log.info("content:", content);
+        log.debug("content:", content);
 
-        log.info("\n");
+        log.debug("\n");
 
 
 
@@ -85,7 +83,7 @@ open.then(function (conn) {
 
           log.info("statusCode: ", res.statusCode);
 
-          log.info("headers: ", res.headers);
+          log.debug("headers: ", res.headers);
 
           var _data = '';
 
@@ -97,7 +95,7 @@ open.then(function (conn) {
 
           res.on('end', function () {
 
-            log.info("\n--->>\nresult:", _data)
+            log.debug("\n--->>\nresult:", _data)
 
           });
 
