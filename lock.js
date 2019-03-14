@@ -17,7 +17,7 @@ log4js.configure({
     }
   },
   categories: {
-    default: { appenders: ['out','day'], level: Info.log},
+    default: { appenders: ['out', 'day'], level: Info.log },
   }
 });
 
@@ -33,15 +33,68 @@ var open = require('amqplib').connect({
 });
 
 
+function request(url, method, headers, content, callback) {
+
+  var options = {
+
+    host: url.hostname,
+
+    port: url.port,
+
+    path: url.pathname,
+
+    method: method,
+
+    headers: headers
+
+  };
+
+  log.debug("post options:", options);
+
+  log.debug("content:", content);
+
+
+
+  var req = http.request(options, function (res) {
+
+
+    log.debug("headers: ", res.headers);
+
+    var _data = '';
+
+    res.on('data', function (chunk) {
+
+      _data += chunk;
+
+    });
+
+    res.on('end', function () {
+
+      if (callback) {
+
+        callback(res.statusCode, _data.trim());
+      }
+
+    });
+
+  });
+
+
+
+  req.write(content);
+
+  req.end();
+}
+
 
 // Consumer
 open.then(function (conn) {
+  log.info('ready...');
   return conn.createChannel();
 }).then(function (ch) {
   return ch.assertQueue(q).then(function (ok) {
     return ch.consume(q, function (msg) {
       if (msg !== null) {
-        log.info(msg.content.toString());
 
         var arr = msg.content.toString().split("|");
 
@@ -49,67 +102,52 @@ open.then(function (conn) {
 
         var url = new URL(arr[0]);
 
+        request(url, "POST", {
+
+          'Content-Type': 'application/json',
+
+          'Content-Length': content.length
+
+        }, content, function (statusCode, data) {
+
+          log.info("request url:", arr[0]);
+          log.info("request params:", arr[1]);
+          log.info("response status: ", statusCode);
+          log.info("response data:", data);
 
 
-        var options = {
+          if (arr.length > 2) {
 
-          host: url.hostname,
+            url = new URL(arr[2]);
 
-          port: url.port,
+            request(url, "GET", {
 
-          path: url.pathname,
+            }, "", function (statusCode, data) {
 
-          method: 'POST',
+              log.info("callabck request  url:", arr[2]);
+              log.info("callabck response status: ", statusCode);
+              log.info("callabck response data:", data);
+              ch.ack(msg);
 
-          headers: {
 
-            'Content-Type': 'application/json',
+            });
 
-            'Content-Length': content.length
+
+          } else {
+
+
+
+            ch.ack(msg);
 
           }
 
-        };
 
-        log.debug("post options:\n", options);
-
-        log.debug("content:", content);
-
-        log.debug("\n");
+        })
 
 
 
-        var req = http.request(options, function (res) {
-
-          log.info("statusCode: ", res.statusCode);
-
-          log.debug("headers: ", res.headers);
-
-          var _data = '';
-
-          res.on('data', function (chunk) {
-
-            _data += chunk;
-
-          });
-
-          res.on('end', function () {
-
-            log.debug("\n--->>\nresult:", _data)
-
-          });
-
-        });
 
 
-
-        req.write(content);
-
-        req.end();
-
-
-
-        ch.ack(msg);
       }
     });
   });
