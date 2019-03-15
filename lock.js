@@ -1,6 +1,7 @@
 var http = require('http');
 const { URL } = require('url');
 var log4js = require("log4js");
+var querystring = require('querystring');
 
 
 
@@ -114,17 +115,38 @@ open.then(function (conn) {
           log.info("request params:", arr[1]);
           log.info("response status: ", statusCode);
           log.info("response data:", data);
+          var ret = {};
+          try {
+
+            ret = JSON.parse(data);
+
+          } catch (e) {
+
+            log.error(e);
+
+            return;
+
+
+          }
+
+
 
 
           if (arr.length > 2) {
 
+
+
             url = new URL(arr[2]);
-
-            request(url, "GET", {
-
-            }, "", function (statusCode, data) {
+            var content = url.searchParams.toString() + '&' + querystring.stringify({
+              retrun_json: JSON.stringify({ code: ret.ret })
+            });
+            request(url, "POST", {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': content.length
+            }, content, function (statusCode, data) {
 
               log.info("callabck request  url:", arr[2]);
+              log.info("callabck request  params:", content);
               log.info("callabck response status: ", statusCode);
               log.info("callabck response data:", data);
               ch.ack(msg);
