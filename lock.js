@@ -5,11 +5,12 @@ var querystring = require('querystring');
 
 
 
+// config
 var fs = require('fs');
 var ini = require('ini');
 var Info = ini.parse(fs.readFileSync("config.ini", "UTF-8"));
 
-
+// log
 log4js.configure({
   appenders: {
     out: { type: 'stdout' },
@@ -34,6 +35,7 @@ var open = require('amqplib').connect({
 });
 
 
+// util
 function request(url, method, headers, content, callback) {
 
   var options = {
@@ -87,6 +89,103 @@ function request(url, method, headers, content, callback) {
   req.end();
 }
 
+// doing 
+function do_msg(msgs, index, end_callback) {
+
+  var msg = '';
+  if (index < msgs.length) {
+    msg = msgs[index];
+  }
+
+  if (msg !== null) {
+
+    var arr = msg.split("|");
+
+    var content = arr[1];
+
+    var url = new URL(arr[0]);
+
+    request(url, "POST", {
+
+      'Content-Type': 'application/json',
+
+      'Content-Length': content.length
+
+    }, content, function (statusCode, data) {
+
+      log.info("request url:", arr[0]);
+      log.info("request params:", arr[1]);
+      log.info("response status: ", statusCode);
+      log.info("response data:", data);
+      var ret = {};
+      try {
+
+        ret = JSON.parse(data);
+
+      } catch (e) {
+
+        log.error(e);
+
+        return;
+
+
+      }
+
+
+
+
+      if (arr.length > 2) {      //include callback
+
+
+
+        url = new URL(arr[2]);
+        var content = url.searchParams.toString() + '&' + querystring.stringify({
+          retrun_json: JSON.stringify({ code: ret.ret })
+        });
+        request(url, "POST", {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Length': content.length
+        }, content, function (statusCode, data) {
+
+          log.info("callabck request  url:", arr[2]);
+          log.info("callabck request  params:", content);
+          log.info("callabck response status: ", statusCode);
+          log.info("callabck response data:", data);
+
+          if (index == msgs.length - 1) { //last msg
+            if (end_callback) {
+              end_callback();
+            }
+          } else {
+            do_msg(msgs, index + 1, end_callback);
+          }
+
+
+        });
+
+
+      } else {
+
+        if (index == msgs.length - 1) { //last msg
+          if (end_callback) {
+            end_callback();
+          }
+        } else {
+          do_msg(msgs, index + 1, end_callback);
+        }
+
+      }
+
+
+    })
+
+
+
+
+
+  }
+}
+
 
 // Consumer
 open.then(function (conn) {
@@ -94,83 +193,18 @@ open.then(function (conn) {
   return conn.createChannel();
 }).then(function (ch) {
   return ch.assertQueue(q).then(function (ok) {
-    return ch.consume(q, function (msg) {
-      if (msg !== null) {
+    return ch.consume(q, function (msg) {            // msg format:{url1}|{params1}|[callback1],{url2}|{params2}|[callback2],{url3}|{params3}|[callback3],.....
 
-        var arr = msg.content.toString().split("|");
+      log.info('consume new msg:', msg.content.toString());
 
-        var content = arr[1];
+      var msgs = msg.content.toString().split("||");
 
-        var url = new URL(arr[0]);
+      do_msg(msgs, 0, function () {
 
-        request(url, "POST", {
+        ch.ack(msg);           // send ask after do last msg
+        log.info('consume end, send ack');
+      });
 
-          'Content-Type': 'application/json',
-
-          'Content-Length': content.length
-
-        }, content, function (statusCode, data) {
-
-          log.info("request url:", arr[0]);
-          log.info("request params:", arr[1]);
-          log.info("response status: ", statusCode);
-          log.info("response data:", data);
-          var ret = {};
-          try {
-
-            ret = JSON.parse(data);
-
-          } catch (e) {
-
-            log.error(e);
-
-            return;
-
-
-          }
-
-
-
-
-          if (arr.length > 2) {
-
-
-
-            url = new URL(arr[2]);
-            var content = url.searchParams.toString() + '&' + querystring.stringify({
-              retrun_json: JSON.stringify({ code: ret.ret })
-            });
-            request(url, "POST", {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Content-Length': content.length
-            }, content, function (statusCode, data) {
-
-              log.info("callabck request  url:", arr[2]);
-              log.info("callabck request  params:", content);
-              log.info("callabck response status: ", statusCode);
-              log.info("callabck response data:", data);
-              ch.ack(msg);
-
-
-            });
-
-
-          } else {
-
-
-
-            ch.ack(msg);
-
-          }
-
-
-        })
-
-
-
-
-
-      }
     });
   });
 }).catch(console.warn);
