@@ -2,20 +2,31 @@ var http = require('http');
 const { URL } = require('url');
 var log4js = require("log4js");
 var querystring = require('querystring');
+var yargs = require('yargs');
+var path = require('path');
 
-
+var argv = yargs.reset().option("c", {
+  alias: "config_file_path",
+  demand: true,
+  default: path.resolve(''),
+  description: "config file path"
+}).help("h").alias("h", "help").argv;
 
 // config
 var fs = require('fs');
 var ini = require('ini');
-var Info = ini.parse(fs.readFileSync("config.ini", "UTF-8"));
+
+
+
+
+var Info = ini.parse(fs.readFileSync(argv.c + "/config.ini", "UTF-8"));
 
 // log
 log4js.configure({
   appenders: {
     out: { type: 'stdout' },
     day: {
-      type: 'dateFile', filename: "./logs/date", alwaysIncludePattern: true, pattern: "-yyyy-MM-dd.log"
+      type: 'dateFile', filename: argv.c + "/logs/date", alwaysIncludePattern: true, pattern: "-yyyy-MM-dd.log"
     }
   },
   categories: {
@@ -208,3 +219,15 @@ open.then(function (conn) {
     });
   });
 }).catch(console.warn);
+
+
+process.on('uncaughtException', function (err) {
+  log.info(err);
+})
+
+
+process.on('unhandledRejection', function (err, promise) {
+
+  log.info(err);
+
+})
