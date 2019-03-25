@@ -37,7 +37,7 @@ log4js.configure({
       port: Info.port,
       username: Info.username,
       password: Info.password,
-      routing_key: 'info',
+      routing_key: Info.queue,
       exchange: 'direct_logs',
       mq_type: 'direct',
       durable: true

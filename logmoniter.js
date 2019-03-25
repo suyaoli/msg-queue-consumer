@@ -7,7 +7,7 @@ var ini = require('ini');
 
 var severities = process.argv.slice(2);
 if (severities.length < 1) {
-  console.warn('Usage: %s [info] [warning] [error]',
+  console.warn('Usage: %s [queue name]',
                basename(process.argv[1]));
   process.exit(1);
 }
