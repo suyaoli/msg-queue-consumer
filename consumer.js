@@ -4,6 +4,9 @@ var log4js = require("log4js");
 var querystring = require('querystring');
 var yargs = require('yargs');
 var path = require('path');
+var validator = require('validator');
+var shell = require('shelljs');
+
 
 var argv = yargs.reset().option("c", {
   alias: "config_file_path",
@@ -27,10 +30,21 @@ log4js.configure({
     out: { type: 'stdout' },
     day: {
       type: 'dateFile', filename: argv.c + "/logs/date", alwaysIncludePattern: true, pattern: "-yyyy-MM-dd.log"
+    },
+    mq: {
+      type: '@log4js-node/rabbitmq',
+      host: Info.hostname,
+      port: Info.port,
+      username: Info.username,
+      password: Info.password,
+      routing_key: 'info',
+      exchange: 'direct_logs',
+      mq_type: 'direct',
+      durable: true
     }
   },
   categories: {
-    default: { appenders: ['out', 'day'], level: Info.log },
+    default: { appenders: ['out', 'day', 'mq'], level: Info.log },
   }
 });
 
@@ -112,70 +126,30 @@ function do_msg(msgs, index, end_callback) {
 
     var arr = msg.split("|");
 
-    var content = arr[1];
+    var content = "";
 
-    var url = new URL(arr[0]);
+    if (arr.length >= 2) {
 
-    request(url, "POST", {
+      content = arr[1];
+    }
 
-      'Content-Type': 'application/json',
+    if (arr[0].indexOf("http") == -1) {
 
-      'Content-Length': content.length
+      var line = arr[0];
 
-    }, content, function (statusCode, data) {
+      var child = shell.exec(line, { silent: true }, function (code, stdout, stderr) {
 
-      log.info("request url:", arr[0]);
-      log.info("request params:", arr[1]);
-      log.info("response status: ", statusCode);
-      log.info("response data:", data);
-      var ret = {};
-      try {
-
-        ret = JSON.parse(data);
-
-      } catch (e) {
-
-        log.error(e);
-
-        return;
-
-
-      }
+        if (code == 0) {
 
 
 
+          log.info('execute success');
 
-      if (arr.length > 2) {      //include callback
+        } else {
 
+          log.info('execute fail,error info:' + stderr.trim());
 
-
-        url = new URL(arr[2]);
-        var content = url.searchParams.toString() + '&' + querystring.stringify({
-          retrun_json: JSON.stringify({ code: ret.ret })
-        });
-        request(url, "POST", {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': content.length
-        }, content, function (statusCode, data) {
-
-          log.info("callabck request  url:", arr[2]);
-          log.info("callabck request  params:", content);
-          log.info("callabck response status: ", statusCode);
-          log.info("callabck response data:", data);
-
-          if (index == msgs.length - 1) { //last msg
-            if (end_callback) {
-              end_callback();
-            }
-          } else {
-            do_msg(msgs, index + 1, end_callback);
-          }
-
-
-        });
-
-
-      } else {
+        }
 
         if (index == msgs.length - 1) { //last msg
           if (end_callback) {
@@ -185,10 +159,107 @@ function do_msg(msgs, index, end_callback) {
           do_msg(msgs, index + 1, end_callback);
         }
 
-      }
+        return;
+
+      });
+
+      child.stdout.on('data', function (data) {
+
+        log.info('output:' + data.trim());
 
 
-    })
+      });
+
+
+
+
+    } else {
+
+
+
+
+      var url = new URL(arr[0]);
+
+      request(url, "POST", {
+
+        'Content-Type': 'application/json',
+
+        'Content-Length': content.length
+
+      }, content, function (statusCode, data) {
+
+        log.info("request url:", arr[0]);
+        log.info("request params:", arr[1]);
+        log.info("response status: ", statusCode);
+        log.info("response data:", data);
+        var ret = {};
+        try {
+
+          if (validator.isJSON(data)) {
+
+            ret = JSON.parse(data);
+
+          }
+
+
+
+        } catch (e) {
+
+          log.error(e);
+
+          return;
+
+
+        }
+
+
+
+
+        if (arr.length > 2) {      //include callback
+
+
+
+          url = new URL(arr[2]);
+          var content = url.searchParams.toString() + '&' + querystring.stringify({
+            retrun_json: JSON.stringify({ code: ret.ret })
+          });
+          request(url, "POST", {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': content.length
+          }, content, function (statusCode, data) {
+
+            log.info("callabck request  url:", arr[2]);
+            log.info("callabck request  params:", content);
+            log.info("callabck response status: ", statusCode);
+            log.info("callabck response data:", data);
+
+            if (index == msgs.length - 1) { //last msg
+              if (end_callback) {
+                end_callback();
+              }
+            } else {
+              do_msg(msgs, index + 1, end_callback);
+            }
+
+
+          });
+
+
+        } else {
+
+          if (index == msgs.length - 1) { //last msg
+            if (end_callback) {
+              end_callback();
+            }
+          } else {
+            do_msg(msgs, index + 1, end_callback);
+          }
+
+        }
+
+
+      })
+    }
 
 
 
@@ -208,13 +279,24 @@ open.then(function (conn) {
 
       log.info('consume new msg:', msg.content.toString());
 
-      var msgs = msg.content.toString().split("||");
+      try {
 
-      do_msg(msgs, 0, function () {
 
-        ch.ack(msg);           // send ask after do last msg
-        log.info('consume end, send ack');
-      });
+
+
+        var msgs = msg.content.toString().split("||");
+
+        do_msg(msgs, 0, function () {
+
+          ch.ack(msg);           // send ask after do last msg
+          log.info('consume end, send ack');
+        });
+
+      } catch (err) {
+
+        log.info(err);
+
+      }
 
     });
   });
