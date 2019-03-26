@@ -1,3 +1,21 @@
+/*
+
+config.ini中的配置变量：
+
+queue=""
+hostname=""
+port=5672
+username="admin"
+password=""
+heartbeat=60  ;单位秒,心跳检测间隔
+reconnect_interval=5 ;单位秒，重启间隔
+;hearbeat 和 reconnect_interval 结合表示连接断开60秒后，将以每5秒进行重新尝试连接
+log="info"
+
+
+*/
+
+
 var http = require('http');
 const { URL } = require('url');
 var log4js = require("log4js");
@@ -23,6 +41,7 @@ var ini = require('ini');
 
 
 var Info = ini.parse(fs.readFileSync(argv.c + "/config.ini", "UTF-8"));
+
 
 // log
 log4js.configure({
@@ -50,14 +69,7 @@ log4js.configure({
 
 var log = log4js.getLogger();
 
-var q = Info.queue;
 
-var open = require('amqplib').connect({
-  hostname: Info.hostname,
-  port: Info.port,
-  username: Info.username,
-  password: Info.password
-});
 
 
 // util
@@ -268,48 +280,94 @@ function do_msg(msgs, index, end_callback) {
   }
 }
 
+var connected = false;
 
-// Consumer
-open.then(function (conn) {
-  log.info('ready...');
-  return conn.createChannel();
-}).then(function (ch) {
-  return ch.assertQueue(q).then(function (ok) {
-    return ch.consume(q, function (msg) {            // msg format:{url1}|{params1}|[callback1],{url2}|{params2}|[callback2],{url3}|{params3}|[callback3],.....
+function consumer() {
 
-      log.info('consume new msg:', msg.content.toString());
+  if (connected) {
 
-      try {
+    return;
+  }
 
 
 
 
-        var msgs = msg.content.toString().split("||");
+  var q = Info.queue;
 
-        do_msg(msgs, 0, function () {
-
-          ch.ack(msg);           // send ask after do last msg
-          log.info('consume end, send ack');
-        });
-
-      } catch (err) {
-
-        log.info(err);
-
-      }
-
-    });
+  var open = require('amqplib').connect({
+    hostname: Info.hostname,
+    port: Info.port,
+    username: Info.username,
+    password: Info.password,
+    heartbeat: Info.heartbeat             //网络连接断开后60S将每隔5秒自动重新连接
   });
-}).catch(console.warn);
 
+  // Consumer
+  open.then(function (conn) {
+    log.info('ready...');
+
+    if(connected){
+      conn.close();
+    }
+
+    connected = true;
+    return conn.createChannel();
+  }).then(function (ch) {
+    return ch.assertQueue(q).then(function (ok) {
+      return ch.consume(q, function (msg) {            // msg format:{url1}|{params1}|[callback1],{url2}|{params2}|[callback2],{url3}|{params3}|[callback3],.....
+
+        log.info('consume new msg:', msg.content.toString());
+
+        try {
+
+
+
+
+          var msgs = msg.content.toString().split("||");
+
+          do_msg(msgs, 0, function () {
+
+            ch.ack(msg);           // send ask after do last msg
+            log.info('consume end, send ack');
+          });
+
+        } catch (err) {
+
+          log.info('do msg catch');
+
+
+          log.info(err);
+
+        }
+
+      });
+    });
+  }).catch(function (error) {
+    log.info('connection catch');
+    log.info(error);
+    connected=false;
+    setTimeout(consumer,Info.reconnect_interval*1000);
+  });
+
+}
+
+consumer();
 
 process.on('uncaughtException', function (err) {
+
+  log.info('process uncaughtException');
   log.info(err);
+
+  if (err.message == 'Heartbeat timeout') {
+    connected=false;
+    consumer();
+  }
 })
 
 
 process.on('unhandledRejection', function (err, promise) {
-
+  log.info('process unhandledRejection');
   log.info(err);
-
+  process.exit(1);
 })
+
