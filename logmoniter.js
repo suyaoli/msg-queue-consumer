@@ -58,7 +58,7 @@ open.then(function(conn) {
       function logMessage(msg) {
         console.log(" [x] %s:'%s'",
                     msg.fields.routingKey,
-                    msg.content.toString());
+                    msg.content.toString('utf8'));
       }
     });
   }).catch(console.warn);

@@ -17,6 +17,7 @@ log="info"
 
 
 var http = require('http');
+var https = require('https');
 const { URL } = require('url');
 var log4js = require("log4js");
 var querystring = require('querystring');
@@ -71,6 +72,190 @@ var log = log4js.getLogger();
 
 
 
+//protocol: get,postjson|http,postform|callback_http
+
+function parse_protocol(protocol, content, is_callback = false) {
+
+  if (is_callback) {
+    switch (protocol) {
+
+      case 'postform:':
+      case 'http:':                          //回调默认POST FORM方式
+        return {
+
+          method: 'POST',
+
+          headers: {
+
+            'Content-Type': 'application/x-www-form-urlencoded',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'http'
+        };
+
+      case 'postforms:':
+      case 'https:':                          //回调默认POST FORM方式
+        return {
+
+          method: 'POST',
+
+          headers: {
+
+            'Content-Type': 'application/x-www-form-urlencoded',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'https'
+        };
+      case 'postjson:':
+        return {
+          method: 'POST',
+          headers: {
+
+            'Content-Type': 'application/json',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'http'
+        };
+      case 'postjsons:':
+        return {
+          method: 'POST',
+          headers: {
+
+            'Content-Type': 'application/json',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'https'
+        };
+
+        case 'get:':
+        return {
+
+          method: 'GET',
+          headers: {
+
+          },
+          protocol: 'http'
+
+
+
+        };
+
+      case 'gets:':
+        return {
+
+          method: 'GET',
+          headers: {
+
+          },
+          protocol: 'https'
+
+
+
+        };
+
+    }
+
+  } else {
+
+    switch (protocol) {
+
+      case 'postjson:':
+      case 'http:':                           //默认POST JSON方式
+        return {
+          method: 'POST',
+          headers: {
+
+            'Content-Type': 'application/json',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'http'
+        };
+      case 'postjsons:':
+      case 'https:':                           //默认POST JSON方式
+        return {
+          method: 'POST',
+          headers: {
+
+            'Content-Type': 'application/json',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'https'
+        };
+
+      case 'postform:':
+        return {
+
+          method: 'POST',
+
+          headers: {
+
+            'Content-Type': 'application/x-www-form-urlencoded',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'http'
+        };
+      case 'postforms:':
+        return {
+
+          method: 'POST',
+
+          headers: {
+
+            'Content-Type': 'application/x-www-form-urlencoded',
+
+            'Content-Length': content.length
+
+          },
+          protocol: 'https'
+        };
+      case 'get:':
+        return {
+
+          method: 'GET',
+          headers: {
+
+          },
+          protocol: 'http'
+
+
+
+        };
+
+      case 'gets:':
+        return {
+
+          method: 'GET',
+          headers: {
+
+          },
+          protocol: 'https'
+
+
+
+        };
+    }
+
+  }
+
+
+
+
+
+}
 
 // util
 function request(url, method, headers, content, callback) {
@@ -81,7 +266,7 @@ function request(url, method, headers, content, callback) {
 
     port: url.port,
 
-    path: url.pathname,
+    path: url.pathname + url.search,
 
     method: method,
 
@@ -89,13 +274,16 @@ function request(url, method, headers, content, callback) {
 
   };
 
-  log.debug("post options:", options);
+  log.debug("options:", options);
 
   log.debug("content:", content);
 
+  var http_util = (url.protocol == 'https' ? https : http);
 
 
-  var req = http.request(options, function (res) {
+
+
+  var req = http_util.request(options, function (res) {
 
 
     log.debug("headers: ", res.headers);
@@ -145,7 +333,7 @@ function do_msg(msgs, index, end_callback) {
       content = arr[1];
     }
 
-    if (arr[0].indexOf("http") == -1) {
+    if (arr[0].indexOf("http") == -1 && arr[0].indexOf("postform") == -1 && arr[0].indexOf("postjson") == -1 && arr[0].indexOf("get") == -1) {
 
       var line = arr[0];
 
@@ -192,13 +380,14 @@ function do_msg(msgs, index, end_callback) {
 
       var url = new URL(arr[0]);
 
-      request(url, "POST", {
+      log.debug(url);
 
-        'Content-Type': 'application/json',
+      var protocol_parse_results = parse_protocol(url.protocol, content);
+      url.protocol = protocol_parse_results.protocol;
 
-        'Content-Length': content.length
+      log.debug(protocol_parse_results);
 
-      }, content, function (statusCode, data) {
+      request(url, protocol_parse_results.method, protocol_parse_results.headers, content, function (statusCode, data) {
 
         log.info("request url:", arr[0]);
         log.info("request params:", arr[1]);
@@ -235,10 +424,11 @@ function do_msg(msgs, index, end_callback) {
           var content = url.searchParams.toString() + '&' + querystring.stringify({
             retrun_json: JSON.stringify({ code: ret.ret })
           });
-          request(url, "POST", {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': content.length
-          }, content, function (statusCode, data) {
+
+          var protocol_parse_results = parse_protocol(url.protocol, content);
+          url.protocol = protocol_parse_results.protocol;
+
+          request(url, protocol_parse_results.method, protocol_parse_results.headers, content, function (statusCode, data) {
 
             log.info("callabck request  url:", arr[2]);
             log.info("callabck request  params:", content);
@@ -306,7 +496,7 @@ function consumer() {
   open.then(function (conn) {
     log.info('ready...');
 
-    if(connected){
+    if (connected) {
       conn.close();
     }
 
@@ -345,8 +535,8 @@ function consumer() {
   }).catch(function (error) {
     log.info('connection catch');
     log.info(error);
-    connected=false;
-    setTimeout(consumer,Info.reconnect_interval*1000);
+    connected = false;
+    setTimeout(consumer, Info.reconnect_interval * 1000);
   });
 
 }
@@ -359,7 +549,7 @@ process.on('uncaughtException', function (err) {
   log.info(err);
 
   if (err.message == 'Heartbeat timeout') {
-    connected=false;
+    connected = false;
     consumer();
   }
 })
