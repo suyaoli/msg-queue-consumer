@@ -135,7 +135,7 @@ function parse_protocol(protocol, content, is_callback = false) {
           protocol: 'https'
         };
 
-        case 'get:':
+      case 'get:':
         return {
 
           method: 'GET',
@@ -400,6 +400,11 @@ function do_msg(msgs, index, end_callback) {
 
             ret = JSON.parse(data);
 
+          }else{
+
+            ret={
+              data:data
+            }
           }
 
 
@@ -421,8 +426,12 @@ function do_msg(msgs, index, end_callback) {
 
 
           url = new URL(arr[2]);
+
+          
           var content = url.searchParams.toString() + '&' + querystring.stringify({
             retrun_json: JSON.stringify({ code: ret.ret })
+          })+'&'+querystring.stringify({
+            return_body: JSON.stringify(ret)
           });
 
           var protocol_parse_results = parse_protocol(url.protocol, content);
