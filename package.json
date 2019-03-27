@@ -5,7 +5,10 @@
   "main": "consumer.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "pkg": "pkg consumer.js -t win --out-path=release/"
+    "pkg-c": "pkg consumer.js -t win --out-path=release/",
+    "pkg-l": "pkg logmoniter.js -t win --out-path=release/",
+    "pkg-p": "pkg producer.js -t win --out-path=release/"
+
   },
   "repository": {
     "type": "git",
