@@ -2,6 +2,9 @@
 
 download https://nodejs.org/dist/v10.15.3/node-v10.15.3-x64.msi
 
+npm config set registry https://registry.npm.taobao.org
+
+
 download https://github.com/suyaoli/msg-queue-consumer/archive/master.zip
 
 add config.ini
