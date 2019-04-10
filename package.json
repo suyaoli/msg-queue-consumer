@@ -5,10 +5,9 @@
   "main": "consumer.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "pkg-c": "pkg consumer.js -t win --out-path=release/",
-    "pkg-l": "pkg logmoniter.js -t win --out-path=release/",
-    "pkg-p": "pkg producer.js -t win --out-path=release/"
-
+    "pkg-win-c": "pkg consumer.js -t win --out-path=release/",
+    "pkg-win-l": "pkg logmoniter.js -t win --out-path=release/",
+    "pkg-win-p": "pkg producer.js -t win --out-path=release/"
   },
   "repository": {
     "type": "git",
@@ -37,7 +36,9 @@
     "yargs": "^13.2.2"
   },
   "devDependencies": {
-    "node-windows": "^0.1.14",
     "pkg": "^4.3.7"
+  },
+  "optionalDependencies": {
+    "node-windows": "^0.1.14"
   }
 }
